@@ -1,22 +1,27 @@
-Hi, I'm Nirmala 👋
+# Chakra UI To-Do List (React + Vite + TypeScript)
 
-🎯 A Front-End Developer passionate about building clean and responsive web apps using React, TypeScript, and Chakra UI.
+A simple and clean to-do list app built with **React**, **Vite**, **TypeScript**, and **Chakra UI**.
 
-🚀 I’ve built:
+## Features
 
-A Product Management System
+- Add new tasks
+- Mark tasks as complete
+- Delete tasks
+- Live counters for total and completed tasks
+- Responsive Chakra UI card layout
 
-A Game Discovery App using RAWG API
+## Getting started
 
-An Expense Tracker with live updates
+```bash
+npm install
+npm run dev
+```
 
-💡 I'm learning:
+Then open the local URL shown in your terminal (usually `http://localhost:5173`).
 
-OpenAI API integrations
+## Scripts
 
-Full-stack project architecture
-
-📫 Let's connect:
-https://www.linkedin.com/feed/ 
-
-🌱 “The harder the struggle, the greater the triumph.”
+- `npm run dev` - start the development server
+- `npm run build` - type-check and build for production
+- `npm run preview` - preview production build
+- `npm run lint` - lint source files
