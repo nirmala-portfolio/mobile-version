@@ -94,27 +94,6 @@ const readStoredLists = (): TodoList[] => {
 
 const formatDateLabel = (isoDate: string) => {
   const date = new Date(isoDate);
-  const now = new Date();
-  const todayKey = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).getTime();
-  const dateKey = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  ).getTime();
-  const diffDays = Math.floor((todayKey - dateKey) / 86400000);
-
-  if (diffDays === 0) {
-    return "Today";
-  }
-
-  if (diffDays === 1) {
-    return "Yesterday";
-  }
-
   return date.toLocaleDateString(undefined, {
     weekday: "short",
     day: "numeric",
@@ -262,30 +241,39 @@ const App = () => {
   const mutedText = useColorModeValue("gray.500", "gray.400");
 
   return (
-    <Box minH="100vh" py={16} bgGradient="linear(to-br, gray.900, gray.800)">
+    <Box
+      minH="100vh"
+      py={{ base: 8, md: 16 }}
+      bgGradient="linear(to-br, gray.900, gray.800)"
+    >
       <Container maxW="2xl">
         <Card shadow="lg" bg={cardBg} borderRadius="2xl">
-          <CardBody p={8}>
+          <CardBody p={{ base: 4, sm: 5, md: 8 }}>
             <Stack spacing={6}>
               <Box>
-                <Heading size="lg">My To-Do Lists</Heading>
+                <Heading size={{ base: "md", md: "lg" }}>My To-Do Lists</Heading>
                 <Text mt={2} color="gray.500">
                   Create multiple lists and keep old ones below.
                 </Text>
               </Box>
 
               <form onSubmit={handleCreateList}>
-                <HStack spacing={3} align="stretch">
+                <Stack direction={{ base: "column", sm: "row" }} spacing={3}>
                   <Input
                     placeholder="Create new list (example: Monday Plan)"
                     value={newListTitle}
                     onChange={(event) => setNewListTitle(event.target.value)}
                     size="lg"
                   />
-                  <Button type="submit" colorScheme="blue" px={8}>
+                  <Button
+                    type="submit"
+                    colorScheme="blue"
+                    px={8}
+                    w={{ base: "full", sm: "auto" }}
+                  >
                     New List
                   </Button>
-                </HStack>
+                </Stack>
               </form>
 
               <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
@@ -331,37 +319,24 @@ const App = () => {
                           boxShadow={isFocusedList ? "md" : "sm"}
                           transition="all 0.25s ease"
                         >
-                          <Flex
-                            justify="space-between"
-                            align="center"
+                          <Stack
+                            spacing={2}
                             mb={3}
                             cursor={isFocusedList ? "default" : "pointer"}
                             onClick={() => toggleList(list.id, isFocusedList)}
                           >
-                            <HStack spacing={2}>
-                              {!isFocusedList &&
-                                (isOpen ? (
-                                  <ChevronDownIcon />
-                                ) : (
-                                  <ChevronRightIcon />
-                                ))}
-                              <Heading size="sm">{list.title}</Heading>
-                              <Tag size="sm" colorScheme="gray">
-                                {formatDateLabel(list.createdAt)}
-                              </Tag>
-                              {isFocusedList && (
-                                <Tag colorScheme="teal" size="sm">
-                                  Focus
-                                </Tag>
-                              )}
-                            </HStack>
-                            <HStack spacing={2}>
-                              <Tag
-                                size="sm"
-                                colorScheme={isFocusedList ? "teal" : "gray"}
-                              >
-                                {list.todos.length} tasks
-                              </Tag>
+                            <Flex justify="space-between" align="center" gap={2}>
+                              <HStack spacing={2} minW={0}>
+                                {!isFocusedList &&
+                                  (isOpen ? (
+                                    <ChevronDownIcon />
+                                  ) : (
+                                    <ChevronRightIcon />
+                                  ))}
+                                <Heading size="sm" noOfLines={1}>
+                                  {list.title}
+                                </Heading>
+                              </HStack>
                               <IconButton
                                 aria-label="Delete list"
                                 icon={<DeleteIcon />}
@@ -373,12 +348,27 @@ const App = () => {
                                   deleteList(list.id);
                                 }}
                               />
-                            </HStack>
-                          </Flex>
+                            </Flex>
+
+                            <Flex gap={2} wrap="wrap">
+                              <Tag size="sm" colorScheme="gray">
+                                {formatDateLabel(list.createdAt)}
+                              </Tag>
+                              <Tag
+                                size="sm"
+                                colorScheme={isFocusedList ? "teal" : "gray"}
+                              >
+                                {list.todos.length} tasks
+                              </Tag>
+                            </Flex>
+                          </Stack>
 
                           <Collapse in={isOpen} animateOpacity>
                             <Stack spacing={3}>
-                              <HStack spacing={2}>
+                              <Stack
+                                direction={{ base: "column", sm: "row" }}
+                                spacing={2}
+                              >
                                 <Input
                                   placeholder="Add a task to this list..."
                                   value={draftTasks[list.id] ?? ""}
@@ -395,10 +385,11 @@ const App = () => {
                                 <Button
                                   colorScheme="blue"
                                   onClick={() => addTaskToList(list.id)}
+                                  w={{ base: "full", sm: "auto" }}
                                 >
                                   Add
                                 </Button>
-                              </HStack>
+                              </Stack>
 
                               {list.todos.length === 0 ? (
                                 <Text color={mutedText} fontSize="sm">
@@ -424,6 +415,7 @@ const App = () => {
                                         }
                                         colorScheme="green"
                                         flex="1"
+                                        mr={2}
                                       >
                                         <Text
                                           as={todo.completed ? "s" : "span"}
@@ -441,6 +433,7 @@ const App = () => {
                                         icon={<DeleteIcon />}
                                         variant="ghost"
                                         colorScheme="red"
+                                        size="sm"
                                         onClick={() =>
                                           deleteTask(list.id, todo.id)
                                         }
