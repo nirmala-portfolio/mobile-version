@@ -15,9 +15,9 @@ import {
   Tag,
   Text,
   useColorModeValue,
-} from '@chakra-ui/react';
-import { DeleteIcon } from '@chakra-ui/icons';
-import { FormEvent, useMemo, useState } from 'react';
+} from "@chakra-ui/react";
+import { DeleteIcon } from "@chakra-ui/icons";
+import { FormEvent, useMemo, useState } from "react";
 
 type Todo = {
   id: number;
@@ -26,7 +26,7 @@ type Todo = {
 };
 
 const App = () => {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [todos, setTodos] = useState<Todo[]>([]);
 
   const completedCount = useMemo(
@@ -49,7 +49,7 @@ const App = () => {
         completed: false,
       },
     ]);
-    setInput('');
+    setInput("");
   };
 
   const toggleTodo = (id: number) => {
@@ -64,10 +64,10 @@ const App = () => {
     setTodos((previousTodos) => previousTodos.filter((todo) => todo.id !== id));
   };
 
-  const cardBg = useColorModeValue('white', 'gray.700');
+  const cardBg = useColorModeValue("white", "gray.700");
 
   return (
-    <Box minH="100vh" py={16} bgGradient="linear(to-br, blue.50, purple.50)">
+    <Box minH="100vh" py={16} bgGradient="linear(to-br, gray.900, gray.800)">
       <Container maxW="2xl">
         <Card shadow="lg" bg={cardBg} borderRadius="2xl">
           <CardBody p={8}>
@@ -75,7 +75,7 @@ const App = () => {
               <Box>
                 <Heading size="lg">My To-Do List</Heading>
                 <Text mt={2} color="gray.500">
-                  Organize your day with React + TypeScript + Chakra UI.
+                  Hey Nemo.. Lets Write your day .. !!!
                 </Text>
               </Box>
 
@@ -106,7 +106,9 @@ const App = () => {
 
               <Stack spacing={3}>
                 {todos.length === 0 ? (
-                  <Text color="gray.500">No tasks yet. Add your first to-do above.</Text>
+                  <Text color="gray.500">
+                    No tasks yet. Add your first to-do above.
+                  </Text>
                 ) : (
                   todos.map((todo) => (
                     <Flex
@@ -124,7 +126,9 @@ const App = () => {
                         colorScheme="green"
                         flex="1"
                       >
-                        <Text as={todo.completed ? 's' : 'span'}>{todo.text}</Text>
+                        <Text as={todo.completed ? "s" : "span"}>
+                          {todo.text}
+                        </Text>
                       </Checkbox>
                       <IconButton
                         aria-label="Delete task"
