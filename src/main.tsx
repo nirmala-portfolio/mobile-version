@@ -1,15 +1,26 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ChakraProvider, ColorModeScript } from "@chakra-ui/react";
+import {
+  ChakraProvider,
+  ColorModeScript,
+  extendTheme,
+} from "@chakra-ui/react";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 
 registerSW({ immediate: true });
 
+const theme = extendTheme({
+  config: {
+    initialColorMode: "dark",
+    useSystemColorMode: false,
+  },
+});
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <ChakraProvider>
-      <ColorModeScript initialColorMode="light" />
+    <ChakraProvider theme={theme}>
+      <ColorModeScript initialColorMode={theme.config.initialColorMode} />
       <App />
     </ChakraProvider>
   </React.StrictMode>,
