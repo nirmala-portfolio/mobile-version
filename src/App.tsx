@@ -19,9 +19,14 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   DeleteIcon,
+  EditIcon,
+  SmallCloseIcon,
 } from "@chakra-ui/icons";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -108,6 +113,7 @@ const App = () => {
   const [expandedLists, setExpandedLists] = useState<Record<number, boolean>>(
     {},
   );
+  const [editingTasks, setEditingTasks] = useState<Record<number, string>>({});
 
   const totalTasks = useMemo(
     () => lists.reduce((sum, list) => sum + list.todos.length, 0),
@@ -221,6 +227,86 @@ const App = () => {
             }
           : list,
       ),
+    );
+    setEditingTasks((previousEditingTasks) => {
+      const nextEditingTasks = { ...previousEditingTasks };
+      delete nextEditingTasks[taskId];
+      return nextEditingTasks;
+    });
+  };
+
+  const startEditingTask = (taskId: number, currentText: string) => {
+    setEditingTasks((previousEditingTasks) => ({
+      ...previousEditingTasks,
+      [taskId]: currentText,
+    }));
+  };
+
+  const setEditingTaskValue = (taskId: number, value: string) => {
+    setEditingTasks((previousEditingTasks) => ({
+      ...previousEditingTasks,
+      [taskId]: value,
+    }));
+  };
+
+  const cancelEditingTask = (taskId: number) => {
+    setEditingTasks((previousEditingTasks) => {
+      const nextEditingTasks = { ...previousEditingTasks };
+      delete nextEditingTasks[taskId];
+      return nextEditingTasks;
+    });
+  };
+
+  const saveTaskEdit = (listId: number, taskId: number) => {
+    const rawText = editingTasks[taskId] ?? "";
+    const trimmedText = rawText.trim();
+
+    if (!trimmedText) {
+      return;
+    }
+
+    setLists((previousLists) =>
+      previousLists.map((list) =>
+        list.id === listId
+          ? {
+              ...list,
+              todos: list.todos.map((todo) =>
+                todo.id === taskId ? { ...todo, text: trimmedText } : todo,
+              ),
+            }
+          : list,
+      ),
+    );
+    cancelEditingTask(taskId);
+  };
+
+  const moveTask = (listId: number, taskId: number, direction: -1 | 1) => {
+    setLists((previousLists) =>
+      previousLists.map((list) => {
+        if (list.id !== listId) {
+          return list;
+        }
+
+        const currentIndex = list.todos.findIndex((todo) => todo.id === taskId);
+        const nextIndex = currentIndex + direction;
+
+        if (
+          currentIndex === -1 ||
+          nextIndex < 0 ||
+          nextIndex >= list.todos.length
+        ) {
+          return list;
+        }
+
+        const nextTodos = [...list.todos];
+        const [movedTask] = nextTodos.splice(currentIndex, 1);
+        nextTodos.splice(nextIndex, 0, movedTask);
+
+        return {
+          ...list,
+          todos: nextTodos,
+        };
+      }),
     );
   };
 
@@ -397,7 +483,11 @@ const App = () => {
                                 </Text>
                               ) : (
                                 <Stack spacing={2}>
-                                  {list.todos.map((todo) => (
+                                  {list.todos.map((todo, todoIndex) => {
+                                    const isEditing =
+                                      editingTasks[todo.id] !== undefined;
+
+                                    return (
                                     <Flex
                                       key={todo.id}
                                       borderWidth="1px"
@@ -407,39 +497,127 @@ const App = () => {
                                       align="center"
                                       justify="space-between"
                                       bg={taskBg}
+                                      gap={2}
                                     >
-                                      <Checkbox
-                                        isChecked={todo.completed}
-                                        onChange={() =>
-                                          toggleTask(list.id, todo.id)
-                                        }
-                                        colorScheme="green"
-                                        flex="1"
-                                        mr={2}
-                                      >
-                                        <Text
-                                          as={todo.completed ? "s" : "span"}
-                                          color={
-                                            todo.completed
-                                              ? mutedText
-                                              : taskText
+                                      <Box flex="1">
+                                        {isEditing ? (
+                                          <Input
+                                            value={editingTasks[todo.id] ?? ""}
+                                            onChange={(event) =>
+                                              setEditingTaskValue(
+                                                todo.id,
+                                                event.target.value,
+                                              )
+                                            }
+                                            onKeyDown={(event) => {
+                                              if (event.key === "Enter") {
+                                                event.preventDefault();
+                                                saveTaskEdit(list.id, todo.id);
+                                              }
+
+                                              if (event.key === "Escape") {
+                                                event.preventDefault();
+                                                cancelEditingTask(todo.id);
+                                              }
+                                            }}
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <Checkbox
+                                            isChecked={todo.completed}
+                                            onChange={() =>
+                                              toggleTask(list.id, todo.id)
+                                            }
+                                            colorScheme="green"
+                                          >
+                                            <Text
+                                              as={todo.completed ? "s" : "span"}
+                                              color={
+                                                todo.completed
+                                                  ? mutedText
+                                                  : taskText
+                                              }
+                                            >
+                                              {todo.text}
+                                            </Text>
+                                          </Checkbox>
+                                        )}
+                                      </Box>
+
+                                      <HStack spacing={1} align="center">
+                                        <IconButton
+                                          aria-label="Move task up"
+                                          icon={<ArrowUpIcon />}
+                                          variant="ghost"
+                                          size="sm"
+                                          isDisabled={todoIndex === 0}
+                                          onClick={() =>
+                                            moveTask(list.id, todo.id, -1)
                                           }
-                                        >
-                                          {todo.text}
-                                        </Text>
-                                      </Checkbox>
-                                      <IconButton
-                                        aria-label="Delete task"
-                                        icon={<DeleteIcon />}
-                                        variant="ghost"
-                                        colorScheme="red"
-                                        size="sm"
-                                        onClick={() =>
-                                          deleteTask(list.id, todo.id)
-                                        }
-                                      />
+                                        />
+                                        <IconButton
+                                          aria-label="Move task down"
+                                          icon={<ArrowDownIcon />}
+                                          variant="ghost"
+                                          size="sm"
+                                          isDisabled={
+                                            todoIndex === list.todos.length - 1
+                                          }
+                                          onClick={() =>
+                                            moveTask(list.id, todo.id, 1)
+                                          }
+                                        />
+                                        {isEditing ? (
+                                          <>
+                                            <IconButton
+                                              aria-label="Save task"
+                                              icon={<CheckIcon />}
+                                              variant="ghost"
+                                              colorScheme="green"
+                                              size="sm"
+                                              onClick={() =>
+                                                saveTaskEdit(list.id, todo.id)
+                                              }
+                                            />
+                                            <IconButton
+                                              aria-label="Cancel edit"
+                                              icon={<SmallCloseIcon />}
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() =>
+                                                cancelEditingTask(todo.id)
+                                              }
+                                            />
+                                          </>
+                                        ) : (
+                                          <IconButton
+                                            aria-label="Edit task"
+                                            icon={<EditIcon />}
+                                            variant="ghost"
+                                            colorScheme="blue"
+                                            size="sm"
+                                            onClick={() =>
+                                              startEditingTask(
+                                                todo.id,
+                                                todo.text,
+                                              )
+                                            }
+                                          />
+                                        )}
+                                        <IconButton
+                                          aria-label="Delete task"
+                                          icon={<DeleteIcon />}
+                                          variant="ghost"
+                                          colorScheme="red"
+                                          size="sm"
+                                          onClick={() =>
+                                            deleteTask(list.id, todo.id)
+                                          }
+                                        />
+                                      </HStack>
                                     </Flex>
-                                  ))}
+                                    );
+                                  })}
                                 </Stack>
                               )}
                             </Stack>
