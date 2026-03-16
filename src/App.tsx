@@ -369,7 +369,6 @@ const App = () => {
   const taskBg = useColorModeValue("white", "gray.800");
   const taskBorder = useColorModeValue("gray.200", "gray.600");
   const dragBorder = useColorModeValue("teal.400", "teal.300");
-  const dragBg = useColorModeValue("teal.50", "teal.900");
   const taskText = useColorModeValue("gray.700", "gray.100");
   const mutedText = useColorModeValue("gray.500", "gray.400");
 
@@ -390,7 +389,9 @@ const App = () => {
     }
 
     const element = document.elementFromPoint(clientX, clientY);
-    const taskElement = element?.closest("[data-task-id]") as HTMLElement | null;
+    const taskElement = element?.closest(
+      "[data-task-id]",
+    ) as HTMLElement | null;
 
     if (!taskElement) {
       return;
@@ -455,7 +456,9 @@ const App = () => {
       clearPressState();
     };
 
-    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointermove", handlePointerMove, {
+      passive: false,
+    });
     window.addEventListener("pointerup", handlePointerEnd);
     window.addEventListener("pointercancel", handlePointerEnd);
 
@@ -534,7 +537,9 @@ const App = () => {
           <CardBody p={{ base: 4, sm: 5, md: 8 }}>
             <Stack spacing={6}>
               <Box>
-                <Heading size={{ base: "md", md: "lg" }}>My To-Do Lists</Heading>
+                <Heading size={{ base: "md", md: "lg" }}>
+                  My To-Do Lists
+                </Heading>
                 <Text mt={2} color="gray.500">
                   Create multiple lists and keep old ones below.
                 </Text>
@@ -608,7 +613,11 @@ const App = () => {
                             cursor={isFocusedList ? "default" : "pointer"}
                             onClick={() => toggleList(list.id, isFocusedList)}
                           >
-                            <Flex justify="space-between" align="center" gap={2}>
+                            <Flex
+                              justify="space-between"
+                              align="center"
+                              gap={2}
+                            >
                               <HStack spacing={2} minW={0}>
                                 {!isFocusedList &&
                                   (isOpen ? (
@@ -681,8 +690,9 @@ const App = () => {
                               ) : (
                                 <Stack spacing={2}>
                                   <Text fontSize="xs" color={mutedText}>
-                                    Hold a task for {HOLD_TO_REORDER_LABEL}, then
-                                    drag it above or below another task to reorder.
+                                    Hold a task for {HOLD_TO_REORDER_LABEL},
+                                    then drag it above or below another task to
+                                    reorder.
                                   </Text>
                                   {list.todos.map((todo) => {
                                     const isEditing =
@@ -731,16 +741,34 @@ const App = () => {
                                           data-task-id={todo.id}
                                           data-list-id={list.id}
                                           borderWidth="1px"
-                                          borderColor={
-                                            isDraggedTask ? dragBorder : taskBorder
-                                          }
+                                          borderColor={taskBorder}
                                           borderRadius="lg"
-                                          p={3}
+                                          p={2}
                                           align="flex-start"
                                           justify="space-between"
-                                          bg={isDraggedTask ? dragBg : taskBg}
-                                          gap={3}
-                                          opacity={isDraggedTask ? 0.9 : 1}
+                                          bg={taskBg}
+                                          gap={2}
+                                          opacity={isDraggedTask ? 0.95 : 1}
+                                          transition="transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease"
+                                          transform={
+                                            isDraggedTask
+                                              ? "scale(1.006)"
+                                              : undefined
+                                          }
+                                          boxShadow={
+                                            isDraggedTask
+                                              ? "0 0 0 0.35rem rgba(229,62,62,0.35), 0 0 0 0.5rem rgba(6,95,70,0.25)"
+                                              : undefined
+                                          }
+                                          sx={
+                                            isDraggedTask
+                                              ? {
+                                                  borderImage:
+                                                    "linear-gradient(to right, #e53e3e 50%, #065f46 50%) 1",
+                                                  borderImageSlice: 1,
+                                                }
+                                              : undefined
+                                          }
                                           onPointerDown={(event) =>
                                             handleTaskPointerDown(
                                               event,
@@ -749,7 +777,10 @@ const App = () => {
                                             )
                                           }
                                           onClickCapture={(event) =>
-                                            handleTaskClickCapture(event, todo.id)
+                                            handleTaskClickCapture(
+                                              event,
+                                              todo.id,
+                                            )
                                           }
                                           onContextMenu={(event) =>
                                             event.preventDefault()
@@ -759,20 +790,24 @@ const App = () => {
                                               ? "none"
                                               : "auto",
                                             userSelect:
-                                              activeDrag || holdHintTaskId === todo.id
+                                              activeDrag ||
+                                              holdHintTaskId === todo.id
                                                 ? "none"
                                                 : "auto",
                                             WebkitUserSelect:
-                                              activeDrag || holdHintTaskId === todo.id
+                                              activeDrag ||
+                                              holdHintTaskId === todo.id
                                                 ? "none"
                                                 : "auto",
                                             WebkitTouchCallout: "none",
                                           }}
                                         >
-                                          <Box flex="1" pt={1}>
+                                          <Box flex="1" pt={0}>
                                             {isEditing ? (
                                               <Input
-                                                value={editingTasks[todo.id] ?? ""}
+                                                value={
+                                                  editingTasks[todo.id] ?? ""
+                                                }
                                                 onChange={(event) =>
                                                   setEditingTaskValue(
                                                     todo.id,
@@ -782,7 +817,10 @@ const App = () => {
                                                 onKeyDown={(event) => {
                                                   if (event.key === "Enter") {
                                                     event.preventDefault();
-                                                    saveTaskEdit(list.id, todo.id);
+                                                    saveTaskEdit(
+                                                      list.id,
+                                                      todo.id,
+                                                    );
                                                   }
 
                                                   if (event.key === "Escape") {
@@ -801,7 +839,11 @@ const App = () => {
                                                 colorScheme="green"
                                               >
                                                 <Text
-                                                  as={todo.completed ? "s" : "span"}
+                                                  as={
+                                                    todo.completed
+                                                      ? "s"
+                                                      : "span"
+                                                  }
                                                   color={
                                                     todo.completed
                                                       ? mutedText
@@ -812,15 +854,13 @@ const App = () => {
                                                 </Text>
                                               </Checkbox>
                                             )}
-
-                                            {holdHintTaskId === todo.id && (
-                                              <Text mt={2} fontSize="xs" color={mutedText}>
-                                                Keep holding to enable reordering...
-                                              </Text>
-                                            )}
                                           </Box>
 
-                                          <Stack spacing={1} align="stretch" minW="84px">
+                                          <HStack
+                                            spacing={1}
+                                            align="center"
+                                            flexShrink={0}
+                                          >
                                             {isEditing ? (
                                               <>
                                                 <IconButton
@@ -839,7 +879,10 @@ const App = () => {
                                                   colorScheme="green"
                                                   leftIcon={<CheckIcon />}
                                                   onClick={() =>
-                                                    saveTaskEdit(list.id, todo.id)
+                                                    saveTaskEdit(
+                                                      list.id,
+                                                      todo.id,
+                                                    )
                                                   }
                                                 >
                                                   Save
@@ -882,7 +925,7 @@ const App = () => {
                                                 </Button>
                                               </>
                                             )}
-                                          </Stack>
+                                          </HStack>
                                         </Flex>
                                       </Box>
                                     );
