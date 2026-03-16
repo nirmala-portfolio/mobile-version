@@ -14,21 +14,26 @@ import {
   Input,
   SlideFade,
   Stack,
-  Tag,
   Text,
+  Tag,
   useColorModeValue,
 } from "@chakra-ui/react";
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   DeleteIcon,
-  EditIcon,
   SmallCloseIcon,
 } from "@chakra-ui/icons";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type TodoItem = {
   id: number;
@@ -45,6 +50,15 @@ type TodoList = {
 };
 
 const STORAGE_KEY = "nirmala-multi-list-v1";
+const HOLD_TO_REORDER_MS = 700;
+const HOLD_TO_REORDER_LABEL = `${HOLD_TO_REORDER_MS / 1000} seconds`;
+
+type DragState = {
+  listId: number;
+  taskId: number;
+  overTaskId: number;
+  placement: "above" | "below";
+};
 
 const isValidTodoItem = (todo: unknown): todo is TodoItem => {
   if (!todo || typeof todo !== "object") {
@@ -114,6 +128,16 @@ const App = () => {
     {},
   );
   const [editingTasks, setEditingTasks] = useState<Record<number, string>>({});
+  const [activeDrag, setActiveDrag] = useState<DragState | null>(null);
+  const [holdHintTaskId, setHoldHintTaskId] = useState<number | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const suppressClickTaskRef = useRef<number | null>(null);
+  const pressedTaskRef = useRef<{
+    listId: number;
+    taskId: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
 
   const totalTasks = useMemo(
     () => lists.reduce((sum, list) => sum + list.todos.length, 0),
@@ -132,6 +156,15 @@ const App = () => {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
   }, [lists]);
+
+  useEffect(
+    () => () => {
+      if (holdTimerRef.current !== null) {
+        window.clearTimeout(holdTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const handleCreateList = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -280,7 +313,12 @@ const App = () => {
     cancelEditingTask(taskId);
   };
 
-  const moveTask = (listId: number, taskId: number, direction: -1 | 1) => {
+  const moveTaskToPosition = (
+    listId: number,
+    taskId: number,
+    targetTaskId: number,
+    placement: "above" | "below",
+  ) => {
     setLists((previousLists) =>
       previousLists.map((list) => {
         if (list.id !== listId) {
@@ -288,19 +326,26 @@ const App = () => {
         }
 
         const currentIndex = list.todos.findIndex((todo) => todo.id === taskId);
-        const nextIndex = currentIndex + direction;
+        const targetIndex = list.todos.findIndex(
+          (todo) => todo.id === targetTaskId,
+        );
 
-        if (
-          currentIndex === -1 ||
-          nextIndex < 0 ||
-          nextIndex >= list.todos.length
-        ) {
+        if (currentIndex === -1 || targetIndex === -1) {
           return list;
         }
 
         const nextTodos = [...list.todos];
         const [movedTask] = nextTodos.splice(currentIndex, 1);
-        nextTodos.splice(nextIndex, 0, movedTask);
+        const adjustedTargetIndex =
+          currentIndex < targetIndex ? targetIndex - 1 : targetIndex;
+        const insertAt =
+          placement === "above" ? adjustedTargetIndex : adjustedTargetIndex + 1;
+
+        if (insertAt === currentIndex) {
+          return list;
+        }
+
+        nextTodos.splice(insertAt, 0, movedTask);
 
         return {
           ...list,
@@ -323,8 +368,160 @@ const App = () => {
   const focusedSectionBorder = useColorModeValue("teal.300", "teal.500");
   const taskBg = useColorModeValue("white", "gray.800");
   const taskBorder = useColorModeValue("gray.200", "gray.600");
+  const dragBorder = useColorModeValue("teal.400", "teal.300");
+  const dragBg = useColorModeValue("teal.50", "teal.900");
   const taskText = useColorModeValue("gray.700", "gray.100");
   const mutedText = useColorModeValue("gray.500", "gray.400");
+
+  const clearPressState = () => {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
+    pressedTaskRef.current = null;
+    setHoldHintTaskId(null);
+  };
+
+  const updateDragTarget = (clientX: number, clientY: number) => {
+    const pressedTask = pressedTaskRef.current;
+    if (!pressedTask || !activeDrag) {
+      return;
+    }
+
+    const element = document.elementFromPoint(clientX, clientY);
+    const taskElement = element?.closest("[data-task-id]") as HTMLElement | null;
+
+    if (!taskElement) {
+      return;
+    }
+
+    const overTaskId = Number(taskElement.dataset.taskId);
+    const overListId = Number(taskElement.dataset.listId);
+
+    if (
+      Number.isNaN(overTaskId) ||
+      Number.isNaN(overListId) ||
+      overListId !== pressedTask.listId
+    ) {
+      return;
+    }
+
+    const bounds = taskElement.getBoundingClientRect();
+    const placement =
+      clientY < bounds.top + bounds.height / 2 ? "above" : "below";
+
+    setActiveDrag({
+      listId: pressedTask.listId,
+      taskId: pressedTask.taskId,
+      overTaskId,
+      placement,
+    });
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const pressedTask = pressedTaskRef.current;
+      if (!pressedTask) {
+        return;
+      }
+
+      const movedFar =
+        Math.abs(event.clientX - pressedTask.startX) > 10 ||
+        Math.abs(event.clientY - pressedTask.startY) > 10;
+
+      if (!activeDrag && movedFar) {
+        clearPressState();
+        return;
+      }
+
+      if (activeDrag) {
+        event.preventDefault();
+        updateDragTarget(event.clientX, event.clientY);
+      }
+    };
+
+    const handlePointerEnd = () => {
+      if (activeDrag) {
+        moveTaskToPosition(
+          activeDrag.listId,
+          activeDrag.taskId,
+          activeDrag.overTaskId,
+          activeDrag.placement,
+        );
+      }
+
+      setActiveDrag(null);
+      clearPressState();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, [activeDrag]);
+
+  const handleTaskPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    listId: number,
+    taskId: number,
+  ) => {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("button, input, textarea, a")
+    ) {
+      return;
+    }
+
+    clearPressState();
+    suppressClickTaskRef.current = null;
+    pressedTaskRef.current = {
+      listId,
+      taskId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers can reject pointer capture for synthetic edge cases.
+    }
+
+    setHoldHintTaskId(taskId);
+    holdTimerRef.current = window.setTimeout(() => {
+      if (!pressedTaskRef.current || pressedTaskRef.current.taskId !== taskId) {
+        return;
+      }
+
+      suppressClickTaskRef.current = taskId;
+      setActiveDrag({
+        listId,
+        taskId,
+        overTaskId: taskId,
+        placement: "below",
+      });
+      setHoldHintTaskId(null);
+    }, HOLD_TO_REORDER_MS);
+  };
+
+  const handleTaskClickCapture = (
+    event: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
+    taskId: number,
+  ) => {
+    if (suppressClickTaskRef.current !== taskId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClickTaskRef.current = null;
+  };
 
   return (
     <Box
@@ -483,139 +680,211 @@ const App = () => {
                                 </Text>
                               ) : (
                                 <Stack spacing={2}>
-                                  {list.todos.map((todo, todoIndex) => {
+                                  <Text fontSize="xs" color={mutedText}>
+                                    Hold a task for {HOLD_TO_REORDER_LABEL}, then
+                                    drag it above or below another task to reorder.
+                                  </Text>
+                                  {list.todos.map((todo) => {
                                     const isEditing =
                                       editingTasks[todo.id] !== undefined;
+                                    const isDraggedTask =
+                                      activeDrag?.taskId === todo.id;
+                                    const isDropTarget =
+                                      activeDrag?.overTaskId === todo.id;
 
                                     return (
-                                    <Flex
-                                      key={todo.id}
-                                      borderWidth="1px"
-                                      borderColor={taskBorder}
-                                      borderRadius="lg"
-                                      p={3}
-                                      align="center"
-                                      justify="space-between"
-                                      bg={taskBg}
-                                      gap={2}
-                                    >
-                                      <Box flex="1">
-                                        {isEditing ? (
-                                          <Input
-                                            value={editingTasks[todo.id] ?? ""}
-                                            onChange={(event) =>
-                                              setEditingTaskValue(
-                                                todo.id,
-                                                event.target.value,
-                                              )
-                                            }
-                                            onKeyDown={(event) => {
-                                              if (event.key === "Enter") {
-                                                event.preventDefault();
-                                                saveTaskEdit(list.id, todo.id);
+                                      <Box
+                                        key={todo.id}
+                                        position="relative"
+                                        _before={
+                                          isDropTarget &&
+                                          activeDrag?.placement === "above"
+                                            ? {
+                                                content: '""',
+                                                position: "absolute",
+                                                left: 2,
+                                                right: 2,
+                                                top: "-4px",
+                                                borderTop: "3px solid",
+                                                borderColor: dragBorder,
+                                                borderRadius: "full",
                                               }
+                                            : undefined
+                                        }
+                                        _after={
+                                          isDropTarget &&
+                                          activeDrag?.placement === "below"
+                                            ? {
+                                                content: '""',
+                                                position: "absolute",
+                                                left: 2,
+                                                right: 2,
+                                                bottom: "-4px",
+                                                borderTop: "3px solid",
+                                                borderColor: dragBorder,
+                                                borderRadius: "full",
+                                              }
+                                            : undefined
+                                        }
+                                      >
+                                        <Flex
+                                          data-task-id={todo.id}
+                                          data-list-id={list.id}
+                                          borderWidth="1px"
+                                          borderColor={
+                                            isDraggedTask ? dragBorder : taskBorder
+                                          }
+                                          borderRadius="lg"
+                                          p={3}
+                                          align="flex-start"
+                                          justify="space-between"
+                                          bg={isDraggedTask ? dragBg : taskBg}
+                                          gap={3}
+                                          opacity={isDraggedTask ? 0.9 : 1}
+                                          onPointerDown={(event) =>
+                                            handleTaskPointerDown(
+                                              event,
+                                              list.id,
+                                              todo.id,
+                                            )
+                                          }
+                                          onClickCapture={(event) =>
+                                            handleTaskClickCapture(event, todo.id)
+                                          }
+                                          onContextMenu={(event) =>
+                                            event.preventDefault()
+                                          }
+                                          style={{
+                                            touchAction: activeDrag
+                                              ? "none"
+                                              : "auto",
+                                            userSelect:
+                                              activeDrag || holdHintTaskId === todo.id
+                                                ? "none"
+                                                : "auto",
+                                            WebkitUserSelect:
+                                              activeDrag || holdHintTaskId === todo.id
+                                                ? "none"
+                                                : "auto",
+                                            WebkitTouchCallout: "none",
+                                          }}
+                                        >
+                                          <Box flex="1" pt={1}>
+                                            {isEditing ? (
+                                              <Input
+                                                value={editingTasks[todo.id] ?? ""}
+                                                onChange={(event) =>
+                                                  setEditingTaskValue(
+                                                    todo.id,
+                                                    event.target.value,
+                                                  )
+                                                }
+                                                onKeyDown={(event) => {
+                                                  if (event.key === "Enter") {
+                                                    event.preventDefault();
+                                                    saveTaskEdit(list.id, todo.id);
+                                                  }
 
-                                              if (event.key === "Escape") {
-                                                event.preventDefault();
-                                                cancelEditingTask(todo.id);
-                                              }
-                                            }}
-                                            autoFocus
-                                          />
-                                        ) : (
-                                          <Checkbox
-                                            isChecked={todo.completed}
-                                            onChange={() =>
-                                              toggleTask(list.id, todo.id)
-                                            }
-                                            colorScheme="green"
-                                          >
-                                            <Text
-                                              as={todo.completed ? "s" : "span"}
-                                              color={
-                                                todo.completed
-                                                  ? mutedText
-                                                  : taskText
-                                              }
-                                            >
-                                              {todo.text}
-                                            </Text>
-                                          </Checkbox>
-                                        )}
+                                                  if (event.key === "Escape") {
+                                                    event.preventDefault();
+                                                    cancelEditingTask(todo.id);
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <Checkbox
+                                                isChecked={todo.completed}
+                                                onChange={() =>
+                                                  toggleTask(list.id, todo.id)
+                                                }
+                                                colorScheme="green"
+                                              >
+                                                <Text
+                                                  as={todo.completed ? "s" : "span"}
+                                                  color={
+                                                    todo.completed
+                                                      ? mutedText
+                                                      : taskText
+                                                  }
+                                                >
+                                                  {todo.text}
+                                                </Text>
+                                              </Checkbox>
+                                            )}
+
+                                            {holdHintTaskId === todo.id && (
+                                              <Text mt={2} fontSize="xs" color={mutedText}>
+                                                Keep holding to enable reordering...
+                                              </Text>
+                                            )}
+                                          </Box>
+
+                                          <Stack spacing={1} align="stretch" minW="84px">
+                                            {isEditing ? (
+                                              <>
+                                                <IconButton
+                                                  aria-label="Delete task"
+                                                  icon={<DeleteIcon />}
+                                                  variant="ghost"
+                                                  colorScheme="red"
+                                                  size="sm"
+                                                  onClick={() =>
+                                                    deleteTask(list.id, todo.id)
+                                                  }
+                                                />
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  colorScheme="green"
+                                                  leftIcon={<CheckIcon />}
+                                                  onClick={() =>
+                                                    saveTaskEdit(list.id, todo.id)
+                                                  }
+                                                >
+                                                  Save
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  leftIcon={<SmallCloseIcon />}
+                                                  onClick={() =>
+                                                    cancelEditingTask(todo.id)
+                                                  }
+                                                >
+                                                  Cancel
+                                                </Button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <IconButton
+                                                  aria-label="Delete task"
+                                                  icon={<DeleteIcon />}
+                                                  variant="ghost"
+                                                  colorScheme="red"
+                                                  size="sm"
+                                                  onClick={() =>
+                                                    deleteTask(list.id, todo.id)
+                                                  }
+                                                />
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  colorScheme="blue"
+                                                  onClick={() =>
+                                                    startEditingTask(
+                                                      todo.id,
+                                                      todo.text,
+                                                    )
+                                                  }
+                                                >
+                                                  Edit
+                                                </Button>
+                                              </>
+                                            )}
+                                          </Stack>
+                                        </Flex>
                                       </Box>
-
-                                      <HStack spacing={1} align="center">
-                                        <IconButton
-                                          aria-label="Move task up"
-                                          icon={<ArrowUpIcon />}
-                                          variant="ghost"
-                                          size="sm"
-                                          isDisabled={todoIndex === 0}
-                                          onClick={() =>
-                                            moveTask(list.id, todo.id, -1)
-                                          }
-                                        />
-                                        <IconButton
-                                          aria-label="Move task down"
-                                          icon={<ArrowDownIcon />}
-                                          variant="ghost"
-                                          size="sm"
-                                          isDisabled={
-                                            todoIndex === list.todos.length - 1
-                                          }
-                                          onClick={() =>
-                                            moveTask(list.id, todo.id, 1)
-                                          }
-                                        />
-                                        {isEditing ? (
-                                          <>
-                                            <IconButton
-                                              aria-label="Save task"
-                                              icon={<CheckIcon />}
-                                              variant="ghost"
-                                              colorScheme="green"
-                                              size="sm"
-                                              onClick={() =>
-                                                saveTaskEdit(list.id, todo.id)
-                                              }
-                                            />
-                                            <IconButton
-                                              aria-label="Cancel edit"
-                                              icon={<SmallCloseIcon />}
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() =>
-                                                cancelEditingTask(todo.id)
-                                              }
-                                            />
-                                          </>
-                                        ) : (
-                                          <IconButton
-                                            aria-label="Edit task"
-                                            icon={<EditIcon />}
-                                            variant="ghost"
-                                            colorScheme="blue"
-                                            size="sm"
-                                            onClick={() =>
-                                              startEditingTask(
-                                                todo.id,
-                                                todo.text,
-                                              )
-                                            }
-                                          />
-                                        )}
-                                        <IconButton
-                                          aria-label="Delete task"
-                                          icon={<DeleteIcon />}
-                                          variant="ghost"
-                                          colorScheme="red"
-                                          size="sm"
-                                          onClick={() =>
-                                            deleteTask(list.id, todo.id)
-                                          }
-                                        />
-                                      </HStack>
-                                    </Flex>
                                     );
                                   })}
                                 </Stack>
